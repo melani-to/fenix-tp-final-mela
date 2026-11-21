@@ -28,9 +28,13 @@ Invariantes que sostienen el diseño:
 
 ---
 
+## Video de Defensa
+* **Link al Video**: https://youtu.be/tQpktDeq1RY 
+
+---
+
 ## 2. Integrantes y roles
 
-<!-- COMPLETAR: nombres, correos y fecha de video del equipo real -->
 
 | Rol técnico | Apellido y nombre | Correo | Módulos principales | Pruebas defendidas |
 |---|---|---|---|---|
@@ -518,3 +522,6 @@ tpf/
 ├── compose.yaml / .env.example / requirements.txt / requirements-lock.txt
 └── README.md
 ```
+## 18. Video de Defensa
+
+* **Link al Video**: https://youtu.be/tQpktDeq1RY   
