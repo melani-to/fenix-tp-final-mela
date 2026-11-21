@@ -1,0 +1,1 @@
+{"timestamp": "2026-11-20T02:47:33.630294+00:00", "level": "WARNING", "message": "fallo_simulado_para_evidencia", "process": 9892, "thread": "MainThread", "event_id": "evt-rot-err", "message_id": null, "resource_id": null, "attempt": null, "action": null, "status": "RetryableError"}

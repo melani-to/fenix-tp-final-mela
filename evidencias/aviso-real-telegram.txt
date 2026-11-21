@@ -1,0 +1,26 @@
+Evidencia de aviso REAL a Telegram - Proyecto Fenix
+fecha_utc: 2026-11-20T03:05:33Z
+proveedor: telegram
+chat_id: 52705*** (oculto en la evidencia)
+bot_token: *************** (oculto en la evidencia; reside en .env, ignorado por Git)
+metodo: POST https://api.telegram.org/bot<token>/sendMessage  timeout=(2, 5)
+respuesta: HTTP 200  ok=true
+texto_enviado: Fenix: evt-node-aviso (instance.stopped) sobre node-01: repaired
+
+Comportamiento observado (F14):
+  1a entrega - la notificacion fallo de forma transitoria (RetryableError de red)
+              => ledger repair_done=true, notified=false, SIN ACK, backoff 2 s
+  2a entrega - repair NO se repitio (repair_result sigue repaired),
+              se reenvio solo el aviso => notified=true y ACK a SQS
+  cola principal: ApproximateNumberOfMessages = 0
+
+Ledger del evento:
+{
+  "event_id": "evt-node-aviso",
+  "attempts": 2,
+  "repair_done": true,
+  "repair_result": "repaired",
+  "notified": true
+}
+
+Verificacion: el token no aparece en logs/ ni en evidencias/ (grep sin coincidencias).

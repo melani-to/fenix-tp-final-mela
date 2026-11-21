@@ -1,0 +1,7 @@
+{
+  "caso": "F08",
+  "cola": "prueba-c862fe2d",
+  "recibir_hasta_dlq": 4,
+  "cuerpo": "{\"event_id\": cuerpo-corrompido",
+  "registrado_at": "2026-11-20T05:21:37Z"
+}

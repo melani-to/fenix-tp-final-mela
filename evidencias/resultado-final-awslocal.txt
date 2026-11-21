@@ -1,0 +1,79 @@
+﻿=== Estado final verificado por API — 2026-11-20T02:47:43Z ===
+
+[EC2 node-01]
+{
+    "State": "running",
+    "Tags": [
+        {
+            "Key": "ManagedBy",
+            "Value": "ppa2"
+        },
+        {
+            "Key": "Project",
+            "Value": "fenix"
+        },
+        {
+            "Key": "GroupId",
+            "Value": "grupo01"
+        },
+        {
+            "Key": "Owner",
+            "Value": "grupo01"
+        },
+        {
+            "Key": "Name",
+            "Value": "fenix-grupo01-node-01"
+        }
+    ]
+}
+
+[S3 bucket-01 tags]
+{
+    "TagSet": [
+        {
+            "Key": "ManagedBy",
+            "Value": "ppa2"
+        },
+        {
+            "Key": "Project",
+            "Value": "fenix"
+        },
+        {
+            "Key": "GroupId",
+            "Value": "grupo01"
+        },
+        {
+            "Key": "Owner",
+            "Value": "grupo01"
+        }
+    ]
+}
+
+[SQS colas]
+{
+    "QueueUrls": [
+        "http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/fenix-grupo01-dlq",
+        "http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/fenix-grupo01-events"
+    ]
+}
+{
+    "Attributes": {
+        "ApproximateNumberOfMessages": "0",
+        "RedrivePolicy": "{\"deadLetterTargetArn\": \"arn:aws:sqs:us-east-1:000000000000:fenix-grupo01-dlq\", \"maxReceiveCount\": \"3\"}"
+    }
+}
+
+[DLQ mensaje real preservado]
+{
+    "Messages": [
+        {
+            "MessageId": "c5181e87-55b9-4bb6-94c2-f606f2aef354",
+            "ReceiptHandle": "ZTkzMjRhZTEtZTFhYy00OTE3LTkxN2QtOTY2OGE3NzY1M2Q2IGFybjphd3M6c3FzOnVzLWVhc3QtMTowMDAwMDAwMDAwMDA6ZmVuaXgtZ3J1cG8wMS1kbHEgYzUxODFlODctNTViOS00YmI2LTk0YzItZjYwNmYyYWVmMzU0IDE3OTUxNDI4NjcuOTUzNjA2MQ==",
+            "MD5OfBody": "d6c8e702a3c602d2b99c1dd1bbef6eea",
+            "Body": "{\"schema_version\": 1, \"event_id\": \"evt-node-dlq\", \"event_type\": \"instance.stopped\", \"resource_id\": \"node-01\", \"occurred_at\": \"2026-11-20T02:45:51Z\", \"simulate_failures\": 5}",
+            "Attributes": {
+                "ApproximateReceiveCount": "5"
+            }
+        }
+    ]
+}

@@ -1,0 +1,535 @@
+===== PAGE 1 =====
+TP Final 1 - Sistema de Autorreparación de Infraestructura
+fenix_template.zip 86.9 KiB
+1. Introducción
+2. Reglamento General de Trabajos Grupales
+2.1. Conformación y Registro de Grupos
+2.2. Modalidad de Defensa y Criterios de Evaluación
+2.3. Correcciones y Recuperatorios
+3. Escenario de Producción y Desarrollo
+3.1. Estructura Modular del Proyecto
+3.2. Distribución de Carga de Trabajo y Roles
+3.2.1. Integrante 1 (I1) - Entradas y Excepciones
+3.2.2. Integrante 2 (I2) - Mensajería e Inventario Cloud
+3.2.3. Integrante 3 (I3) - Webhooks y Reparación
+3.2.4. Integrante 4 (I4) - Observabilidad y Comunicación
+3.2.5. Integrante 5 (I5) - Integración y Worker
+3.2.6. Integrante 6 (I6) - Pruebas y Diagnóstico
+3.3. Contratos y Requisitos Funcionales
+3.4. Fundamentos Necesarios
+3.5. Reglas de Alcance y Seguridad
+4. Evaluación
+4.1. Rúbrica del Proyecto
+4.2. Condiciones Técnicas Obligatorias
+5. Plantilla de Referencia y Guía de Implementación
+5.1. Entorno y Puesta en Marcha
+5.2. Algoritmo Común del Worker
+5.3. Integración con Telegram o Slack
+5.4. Código de Apoyo y Tareas del Alumnado
+5.5. Plan Sugerido de Trabajo
+5.5.1. Recetas Boto3 para los Recursos Nuevos
+5.6. Arquitectura y Ejecución Nominal
+5.7. Matriz Mínima de Pruebas
+5.8. Entregables y Plantilla de README
+5.9. Referencias y Continuidad de la Cursada
+1. Introducción
+Proyecto Fénix · Opción 4.3.1 del programa · Programación para Automatización II · Primer año, segundo cuatrimestre · Guía de trabajo y plantillas por integrante
+El equipo construirá un sistema que recibe una alerta de laboratorio mediante un webhook autenticado, la guarda en SQS, repara un recurso emulado por Boto3 y comunica el resultado a Telegram o Slack. El objetivo 
+es integrar lo trabajado en Tritón y Vulcano, con dos reparaciones pequeñas y verificables. No se exige diseñar una plataforma productiva: se exige entender y demostrar cada paso del circuito.
+ Una instancia EC2 mock detenida vuelve a running y un bucket S3 recupera las etiquetas obligatorias. Los mensajes válidos se confirman después de reparar y avisar; los fallidos se reintentan y 
+llegan a la DLQ si la falla persiste. Repetir el mismo evento o reiniciar el worker no debe repetir acciones ya verificadas.
+Resultado mínimo esperado.
+ 1 Reglamento general. 2 Escenario, módulos, roles y fundamentos. 3 Evaluación. 4 Plantilla de referencia, ejecución y pruebas. Anexo de código por integrante. El equipo desarrolla un solo final, no los dos.Mapa de lectura.
+2. Reglamento General de Trabajos Grupales
+2.1. Conformación y Registro de Grupos
+Equipos de cinco o seis estudiantes. Cada estudiante asume un rol técnico identificable, realiza commits propios y revisa al menos un módulo de otro compañero. La responsabilidad de integración es compartida: que un 
+módulo tenga autor no impide que el resto lo comprenda. 
+• Completar en el una tabla con rol, apellido y nombre, correo, módulos y pruebas defendidas. README.md 
+• Las fechas y el canal de registro serán los que publique la cátedra en el aula virtual.
+• Para seis integrantes se asignan los seis roles de la sección 2.2. 
+• Para cinco, las pruebas del rol 6 se distribuyen: I1 prueba validación; I2 prueba SQS y DLQ; I3 prueba el caso de negocio; I4 prueba logs y notificaciones; I5 arma la demostración integral. 
+• Cada uno defiende también su parte de las pruebas. Nadie queda como responsable exclusivo de documentación o presentación.
+2.2. Modalidad de Defensa y Criterios de Evaluación
+Se entrega repositorio público de , , código, pruebas, evidencias y un video grupal con ejecución real en pantalla. GitHub README
+• Como pauta de organización se sugieren 30 a 40 minutos, con entre cinto y siete minutos de intervención individual y una demostración conjunta.
+• El video sigue el esquema de Vulcano: cada estudiante identifica su rol, muestra su módulo, explica una decisión y demuestra un caso correcto y uno de fallo. 
+• El programa exige defensa oral individual y resolución de contingencias en vivo. 
+• El video por sí solo no sustituye ese requisito del programa.
+• No alcanza con leer código o mostrar capturas. Deben poder explicar qué entra, qué sale, qué excepción puede ocurrir y por qué un mensaje se confirma o se conserva. 
+• Para este final, se propone permitir IA como apoyo siempre que se declare qué se utilizó, qué se modificó y cómo se verificó; cada estudiante debe explicar y modificar su código.
+2.3. Correcciones y Recuperatorios
+Se conserva el esquema del TP1 y TP2: observaciones menores se corrigen dentro de siete días corridos desde la devolución. La convocatoria institucional determina las fechas finales y la modalidad de la nueva defensa.
+3. Escenario de Producción y Desarrollo
+La mesa de operaciones de una institución recibe alertas de un sistema de monitoreo simulado. 
+• Algunas indican que un nodo de pruebas quedó detenido; otras, que un bucket perdió una etiqueta necesaria para reconocer a su responsable. 
+• La alerta no debe reparar dentro de la petición HTTP: se autentica, se valida y se almacena en SQS. 
+• El worker opera por separado y consulta el estado real antes y después de cambiarlo.
+El laboratorio se llama Fénix y usa dos aliases: 
+•  para una instancia , y  para un . node-01 EC2 mock bucket-01 bucket S3
+•  crea el inventario del grupo y conserva y etiquetas esperadas en . setup-demo IDs data/inventory.json
+• El webhook acepta aliases conocidos, no de recursos elegidos libremente por quien lo envía.IDs 
+3.1. Estructura Modular del Proyecto
+Ruta Función Autor principal
+src/fenix/config/settings.py Clientes Boto3 y protección del 
+endpoint
+Apoyo entregado 
+y revisión de I2
+src/fenix/utils/errors.py y 
+validation.py
+Excepciones, identificadores y 
+fechas UTC
+I1
+src/fenix/services/events.py Validación del esquema y del 
+inventario
+I1
+src/fenix/services/sqs.py y 
+demo.py
+Colas, DLQ y laboratorio EC2/S3 I2
+src/fenix/utils/crypto.py y 
+services/receiver.py
+HMAC y receptor HTTP I3
+src/fenix/services/remediation.py
+ función repair
+Reparación convergente EC2/S3 I3
+src/fenix/utils/logging_json.py 
+y services/notifications.py
+Logs, gzip y proveedor externo I4
+src/fenix/services/worker.py y 
+remediation.handle
+Consumo y registro por etapas I5
+src/fenix/cli.py Interfaz y manejo de ciclo de vida I5
+tests/ y demo.inject_fault Pruebas, fallas y evidencias I6 o reparto para 
+cinco
+src/fenix/utils/state.py Lectura y escritura atómica del 
+ledger
+Apoyo entregado
+3.2. Distribución de Carga de Trabajo y Roles
+3.2.1. Integrante 1 (I1) - Entradas y Excepciones
+• Completar , y ; revisar errores del dominio. identifier utc_text events.validate
+• Rechazar objeto incorrecto, claves extra o ausentes, como entero, desconocido y ajeno. bool event_type resource_id 
+• Integrar como práctica común del aunque Fénix no lo use para operar. ttl_seconds helper 
+• Entradas: evento e inventario. 
+• Salida: copia validada o . ValidationError
+• Evidencia individual: un evento correcto y tres rechazos sin publicación SQS. 
+Defensa: explicar por qué una lista JSON no es un evento válido y por qué validar otra vez en el worker.
+3.2.2. Integrante 2 (I2) - Mensajería e Inventario Cloud
+• Completar , y . ensure_queues retry_later setup_demo
+• Crear/reutilizar una y una cola estándar con ; conservar devuelta por SDK. DLQ RedrivePolicy QueueUrl 
+• Preparar una instancia mock, su exclusivo y un bucket, etiquetados por grupo. SG 
+• Guardar inventario tras cada creación y recuperar recursos por / al repetir. tags ClientToken 
+• Evidencia: dos  y dos  sin duplicados, más lectura de un mensaje en la . init-queues  setup-demo DLQ
+Defensa: distinguir de y explicar la visibilidad.MessageId ReceiptHandle 
+3.2.3. Integrante 3 (I3) - Webhooks y Reparación
+• Completar , webhook y . El esqueleto ya lee  y limita tamaño; faltan , errores y publicación confirmada. verify repair raw bytes HMAC HTTP 
+• Verificar  estrictos y . t/v1 compare_digest
+• Implementar , y  de tags S3. stopped → start_instances → comprobar running lectura/mezcla/escritura/verificación
+• La  y la orquestación durable la implementa I5. configuración inicial de recursos la provee I2
+• Evidencia: 401 para firma inválida y las dos reparaciones por API. 
+Defensa: explicar por qué sobre un estado deseado converge y no evita efectos repetidos.start reboot 
+3.2.4. Integrante 4 (I4) - Observabilidad y Comunicación
+• Revisar el entregado y completar para un proveedor. logger notify 
+• Asegurar que cada paso de I3 e I5 registra contexto y que un error de aviso no borra el mensaje. 
+• Crear un test que fuerce rotación con tamaño reducido y lea ; no producir innecesarios. gzip megabytes 
+• Evidencia: líneas JSON válidas correlacionadas, histórico comprimido y un aviso real. 
+Defensa: explicar las dos colas diferentes, y , y por qué una privada no entra en .SQS queue.Queue URL logs
+3.2.5. Integrante 5 (I5) - Integración y Worker
+• Completar y ; revisar CLI. run remediation.handle
+• Implementar  con , contenido asociado a , , , y status. data/events.json attempts event_id repair_done repair_result notified 
+• Persistir pasos antes de continuar. Ante aviso pendiente, volver a notificar sin reiniciar el nodo ni reescribir correctas. tags 
+• Evidencia: interrupción después de reparar y antes de avisar; luego reanudar sin nueva reparación. 
+: ubicar el y explicar una caída entre efecto externo y guardado local.Defensa ACK 
+3.2.6. Integrante 6 (I6) - Pruebas y Diagnóstico
+• Completar y ampliar  con casos de la matriz. inject_fault tests/test_fenix.py
+• Crear un pequeño stub de para simular 429 y fallo permanente sin enviar real; registrar las funciones probadas. notify spam 
+• Revisar que ningún test borre recursos de otro grupo.
+• Evidencia: ejecución reproducible de pruebas y una falla que llegue efectivamente a DLQ. 
+Defensa: diferenciar un log escrito por el programa de una prueba que consulta el estado mediante .Boto3
+3.3. Contratos y Requisitos Funcionales
+Contrato JSON cerrado, todos los campos obligatorios:
+{
+  "schema_version": 1
+,
+  "event_id": "evt-node-001"
+,
+  "event_type": "instance.stopped"
+,
+  "resource_id": "node-01"
+,
+  "occurred_at": "2026-10-22T18:00:00Z"
+,
+  "simulate_failures": 0
+}
+• es el entero 1. schema_version 
+• y cumplen . event_id resource_id [a-z0-9-]{3,32}
+• solo admite  o , compatible con el recurso del inventario. event_type instance.stopped bucket.tags_missing
+• lleva UTC explícito y describe el evento; el timestamp HMAC es otro dato y se genera al enviar. occurred_at 
+• es entero de 0 a 5 para laboratorio, nunca . simulate_failures bool
+◦ Con 2, las primeras dos ejecuciones de ese fallan antes de reparar y la tercera puede completar;event_id 
+◦ Con 5 la debe aislar el mensaje. La cuenta se guarda en disco y no se reinicia con el proceso.redrive 
+• El inventario guarda para  , ,  y ; node-01 type=ec2 id=InstanceId security_group_id expected_tags
+• Para ,  y .bucket-01 type=s3 id=BucketName expected_tags
+Ambos pertenecen a , ,  y . ManagedBy=ppa2 Project=fenix GroupId=<grupo> Owner=<grupo>
+• . Nunca se repara un recurso externo porque aparezca su ID en un evento
+•  conservarlo para DLQ y no cambiar el primer registro.Cuando el mismo event_id reaparece con contenido distinto, registrar conflicto,
+Situación HTTP Respuesta Efecto esperado
+Firma ausente, malformada, 
+incorrecta o fuera de 
+ventana
+401 No publicar
+Cuerpo mayor a 16 KiB 413 No publicar
+JSON roto o UTF-8 inválido 
+con firma válida
+400 No publicar
+JSON válido pero contrato 
+incorrecto
+422 No publicar
+SQS no disponible después 
+de validar
+503 No prometer aceptación
+SQS confirmó send_message 202 con event_id/message_id Worker procesa después
+No se impone el objetivo rígido de responder en menos de 100 ms del TP2: el receptor espera confirmación de SQS antes de devolver 202. 
+• Se mide el tiempo observado y se explica; no se declara éxito para cumplir una cifra de latencia. 
+• Boto3 es bloqueante: el endpoint lo ejecuta mediante para no bloquear el bucle de .async run_in_threadpool FastAPI
+• La firma utiliza . HMAC-SHA256(secret, bytes(timestamp) + b"." + raw_body)
+• Cabecera: . X-Webhook-Signature: t=<epoch>,v1=<64 hex>
+• Ventana de 300 segundos hacia pasado o futuro. 
+◦ Rechazar claves duplicadas y formato ambiguo.
+◦ La ventana no evita duplicados dentro de cinco minutos: el ledger y la reparación convergente cubren esa situación.
+3.4. Fundamentos Necesarios
+• Boto3 y LocalStack  Boto3 es el SDK de AWS para Python; LocalStack emula sus APIs. .
+◦ Los clientes del proyecto apuntan explícitamente a  y usan credenciales ficticias desde el entorno. http://localhost:4566
+◦ Una instancia EC2 mock tiene identificador, estado y etiquetas, pero no es una máquina Linux real. 
+◦ Para este final se evalúa la automatización por API, no la instalación de software dentro de una VM [R1, R2].
+• Procesamiento asíncrono  El productor guarda una orden en SQS y el worker la procesa en otro proceso. Esto desacopla tiempos aunque las llamadas Boto3 sean síncronas. .
+◦ SQS es una cola de trabajo: varios workers compiten por mensajes; no se promete entregar una copia a cada consumidor. 
+◦ Para difusión a varios destinos haría falta otro diseño, por ejemplo SNS con varias colas. 
+◦ No se necesita RabbitMQ ni implementar asyncio para consumir SQS [R3].
+• Entrega al menos una vez  Una cola estándar puede entregar un evento más de una vez. .
+◦ El identifica la operación de negocio; identifica el mensaje ; event_id MessageId SQS
+◦ identifica la recepción actual. Se borra con el más reciente solo después del trabajo confirmado. ReceiptHandle ReceiptHandle 
+◦ No se utiliza como recibo [R3].MessageId 
+• Visibilidad y ACK  oculta temporalmente el mensaje, no lo borra. . receive_message 
+◦ Con  el trabajador dispone de una ventana para una operación breve. VisibilityTimeout=45
+◦ Si termina y guarda el resultado, hace el . Si falla antes, el mensaje vuelve a estar disponible. delete_message ACK
+◦ Para operaciones más largas se debe extender la visibilidad o dividir pasos; en el alcance mínimo no se bloquea esperando durante minutos [R4].EC2 
+• Backoff y DLQ  Al fallar se cambia la visibilidad del mensaje original: . Las primeras demoras son 2, 4 y 8 segundos. . demora = min(30, 2 ** numero_de_recepcion)
+◦ lo mantiene SQS. La política con  deriva mensajes persistentes a la DLQ cuando se supera el límite de recepciones. ApproximateReceiveCount RedrivePolicy maxReceiveCount=3
+◦ El movimiento puede requerir nuevas consultas y no es un cronómetro exacto. 
+◦ No se copia el mensaje a la misma cola porque se reiniciaría su cuenta de recepciones [R4, R5].
+• Tipos de fallas  Timeout, limitación temporal y 5xx suelen ser recuperables. .
+◦ Un , un  o son fallas permanentes. esquema inválido recurso ajeno credenciales rechazadas 
+◦ En el laboratorio, ambos casos conservan el mensaje y dejan actuar la misma DLQ automática; cambia la explicación del log. 
+◦ No se hace de un mensaje venenoso para que desaparezca. ACK 
+◦ Durante desarrollo, señala una plantilla incompleta y debe mostrarse, no simular un éxito.NotImplementedError 
+• Idempotencia  Repetir una solicitud debe converger al mismo resultado sin duplicar recursos ni aplicar acciones dañinas de nuevo. .
+◦ Consultar el estado real y registrar pasos completados ayuda a conseguirlo. 
+◦ Un archivo JSON no convierte varias APIs en una transacción: si el proceso cae entre un efecto externo y guardar el resultado, puede tener que volver a consultar o repetir una acción segura. 
+◦ No se promete exactamente una vez.
+• Webhooks y APIs externas. Un webhook es una petición HTTP que comunica un evento. 
+◦ Una API de Telegram o un de Slack sirven para enviar avisos. incoming webhook 
+◦ Son integraciones distintas: el formato HMAC del proyecto autentica su receptor local y no se agrega por cuenta propia a Telegram o Slack. 
+◦ Se elige uno de esos proveedores para la evidencia final [R6, R7].
+• Logs asíncronos. entrega registros a una en memoria; escribe JSON en un hilo del mismo proceso. QueueHandler queue.Queue QueueListener 
+◦ Esa cola sirve para observabilidad y no reemplaza al broker SQS. 
+◦ Cada proceso usa un archivo de log propio para no rotar el mismo archivo desde varios procesos.
+• Excepciones y versión de Python  Las excepciones del proyecto heredan de . . Exception
+◦ Se usan específicos y para conservar la causa cuando no incluya secretos. except raise ... from error 
+◦ ,  y  existen desde Python 3.11; no fueron incorporados por PEP 765. ExceptionGroup except* asyncio.TaskGroup
+◦ Esta última se refiere al control de flujo dentro de en Python 3.14. finally 
+◦ El final admite Python 3.11 o superior, con una versión igual para todo el grupo. no es obligatorio para este worker secuencial [R8].ExceptionGroup 
+3.5. Reglas de Alcance y Seguridad
+1. La cátedra presenta primero una demostración guiada de  en EC2 mock y del borrado de un bucket. create/describe/start/stop/terminate
+a. Las recetas de  cubren los parámetros nuevos: no se espera que el alumnado descubra EC2 sin ese apoyo.cloud_support.py
+2. El mínimo obligatorio utiliza Python en el equipo anfitrión, LocalStack en Docker, SQS estándar con DLQ, S3 y EC2 en modo mock. 
+a. No exige AWS real, Azure, RabbitMQ, Kubernetes, Terraform, bases de datos externas, panel web ni despliegue público. 
+b. No se reutilizan las claves de AWS reales del equipo. El helper de clientes rechaza destinos fuera de loopback en el puerto 4566.
+3. El estado local está en  y se utiliza un único proceso que lo modifica a la vez. data/
+a. Detener el worker antes de modificar el manifiesto con otra CLI. El receptor Fénix solo lo consulta. 
+b. No borrar  mientras existan recursos: contiene el inventario que permite reconocerlos. data/
+c. Apagar puede perder los recursos emulados según su configuración; si se reinicia desde cero, verificar y reconciliar el manifiesto, no dar por válidos IDs antiguos.LocalStack 
+4. No registrar tokens, secretos, firmas completas, cuerpos HTTP con datos sensibles ni URLs privadas de Slack/Telegram. 
+a. Usar nombres ficticios y eventos de laboratorio. 
+b. Las capturas de evidencia deben ocultar credenciales.
+c. Una excepción puede incluir el token de Telegram en su URL: capturarla y registrar solo su tipo y el contexto público.requests 
+4. Evaluación
+4.1. Rúbrica del Proyecto
+Dimensión Puntos Evidencia requerida
+Flujo de negocio y uso de SDK 25 Caso completo y 
+verificación del estado final 
+por API
+Mensajería y tolerancia a fallos 20 SQS, ACK correcto, backoff, 
+DLQ, reinicio y duplicados
+Validación y seguridad 15 Entradas inválidas sin 
+efectos, propiedad y 
+secretos fuera de Git
+Observabilidad y comunicación 15 JSON correlacionado, 
+rotación gzip y aviso real 
+elegido
+Modularización y documentación 10 Paquetes, contratos, 
+docstrings y README 
+reproducible
+Pruebas y evidencia verificable 15 Matriz completa con 
+esperado, obtenido y 
+ejecución
+Total 100 La nota grupal se 
+complementa con la 
+defensa individual
+Esta rúbrica organiza la corrección del entregable; no modifica las condiciones de acreditación del programa. 
+• Cada defensa individual se evalúa sobre 100: explicación del módulo 40, ejecución y diagnóstico 30, modificación breve en vivo 20, comunicación y colaboración 10. 
+• El programa establece un mínimo equivalente al 60 % en cada defensa para la condición Certificable y al 80 % para Certificable - Certificado, junto con todos los demás requisitos institucionales.
+4.2. Condiciones Técnicas Obligatorias
+1. El final necesita funcionar por API con LocalStack; no basta con imprimir que una acción ocurrió. 
+a. Debe utilizar un broker SQS con su DLQ efectiva, variables de entorno, validación de recursos propios, logs JSON correlacionados, documentación y defensa individual. 
+b. Deben conservarse los mensajes fallidos y demostrarse las pruebas críticas de la sección 5. La ausencia de estos componentes requiere corrección aunque la suma de otros puntos sea alta.
+2. No capturar , no usar  ni registrar éxito después de un fallo. BaseException except: pass
+3. No colocar return, break o continue en finally. 
+4. Toda operación de red debe tener esperas acotadas. 
+a. Un error no recuperable de arranque puede terminar el proceso con código 1 después de registrarse; esto es un cierre controlado. 
+b. Dentro del worker, un mensaje corrupto no debe terminar todo el servicio.
+5. El de apoyo conserva contexto público, no serializa árboles completos de . logger ExceptionGroup
+a. Si se necesita , agregarlo de forma explícita y sanitizada antes de ; su prepare estándar modifica la información de excepción. traceback QueueHandler
+b. No se exige esa extensión en este worker secuencial.
+6. El formateador debe conservar , , , , y cuando correspondan; event_id message_id resource_id attempt action status 
+a. Los  como . campos no aplicables se representan null
+b. Se deben demostrar , , , y con casos o apropiadas, no elevar fallos normales a sin motivo.DEBUG INFO WARNING ERROR CRITICAL fixtures CRITICAL 
+5. Plantilla de Referencia y Guía de Implementación
+5.1. Entorno y Puesta en Marcha
+El material incluye dos carpetas independientes; cada equipo elige una y crea su propio entorno virtual. 
+• Las dependencias se declaran en  y . requirements.txt pyproject.toml
+• Después de instalar y comprobar el entorno, generar  con y adjuntarlo a la entrega para registrar las versiones efectivamente usadas. requirements-lock.txt pip freeze 
+• No ejecutar la plantilla contra AWS real.
+1. Usar primero la instalación de LocalStack ya trabajada con la cátedra. La documentación actual de LocalStack requiere un Auth Token para las imágenes actuales, y la disponibilidad depende del plan; EC2 mock/CRUD está 
+documentado para todos los planes. 
+En Bash, Linux, macOS o WSL, desde la carpeta del proyecto:
+python -m venv 
+. venv
+source 
+. venv/bin/activate
+python -m pip install -e 
+.
+cp 
+. env
+. example 
+. env
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+Copiar la clave generada en WEBHOOK_SECRET de .env si se utiliza Fénix. Completar el token LocalStack solo si la imagen adoptada lo requiere. En Windows PowerShell, activar con  y copiar 
+con . Docker Desktop debe estar iniciado. Las órdenes restantes se ejecutan en terminales del mismo proyecto con el entorno activado.
+.venv\Scripts\Activate.ps1
+Copy-Item .env.example .env
+5.2. Algoritmo Común del Worker
+1. Consultar SQS con long polling de 10 segundos, una entrega y visibilidad de 45 segundos. 
+a. Un resultado sin Messages es una cola sin mensajes disponibles, no un error.
+2. Capturar por separado fallos de transporte al consultar; registrar contexto seguro y esperar dos segundos antes de volver. 
+a. No fabricar un ACK ni procesar una respuesta inexistente.
+3. Dentro de un por mensaje, leer , convertir , exigir un objeto, volver a validar el contrato y resolver sus recursos desde el inventario/manifiesto. try Body JSON
+a. La validación HTTP no protege mensajes inyectados directamente a SQS.
+4. Ejecutar el caso de negocio por etapas cortas. Guardar en disco las etapas verificadas antes de continuar con otra dependencia. 
+a. Si una operación queda pending, conservar el progreso y reintentar después.
+5. Solo después de que el handler complete los pasos exigidos, llamar con el actual. delete_message ReceiptHandle 
+a. Registrar después de que el SDK confirme la operación.status=acknowledged 
+6. Si , validación o negocio fallan, registrar el tipo de y , conservar el mensaje y programar backoff sobre su  Si falla ese cambio de visibilidad, mantener el mensaje sin ACK y volver al bucle.JSON fallo attempt ReceiptHandle .
+7. se encarga de la . No hacer un nuevo al reintentar ni eliminar un mensaje venenoso. RedrivePolicy DLQ send_message 
+a. Si el ACK falla después del trabajo, una repetición debe recuperar las etapas ya completadas.
+8. En modo  realizar una consulta y terminar aunque no haya mensajes. --once
+a. Ctrl+C detiene de forma controlada. 
+b. El apaga en ; no confirma mensajes ni destruye recursos desde ese bloque.main QueueListener finally
+5.3. Integración con Telegram o Slack
+1. Elegir una alternativa y documentarla. 
+a. Para , , y obtener el autorizado. Telegram crear el bot mediante BotFather iniciar una conversación con el bot chat_id 
+i. Guardar y en  Invocar con y que contenga y . TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID .env. sendMessage POST JSON chat_id text
+ii.  en el JSON; evitar para no introducir problemas de formato en este nivel [R6].Exigir respuesta HTTP satisfactoria y ok=true parse_mode 
+b. Para , crear una  webhook en un espacio de pruebas donde el grupo tenga permiso y guardar en  Slack app/incoming SLACK_WEBHOOK_URL .env.
+a. Enviar con . POST {"text": "resumen"}
+b. Validar  y cuerpo textual ; no intentar leer siempre  porque esa respuesta no tiene por qué ser [R7].HTTP 200 ok response.json JSON 
+2. Aplicar timeout de conexión de dos segundos y de lectura de cinco. 
+a. , conexión,  y se registran como fallo transitorio sin copiar la excepción ni la URL. Timeout 429 5xx 
+b. Leer  cuando exista y limitar una nueva espera al alcance del ejercicio, hasta 30 segundos; si requiere más, documentar la limitación y conservar la tarea pendiente.  Retry-After
+c.  permanentes deben producir diagnóstico de configuración. 400/401/403
+d. No repetir indefinidamente en un bucle interno: la siguiente recepción SQS y la DLQ limitan los intentos.
+3. El modo console permite probar sin cuentas externas durante el desarrollo. 
+a. Para la entrega se exige al menos un envío real en el canal de pruebas elegido, con evidencia y secretos ocultos. 
+b. No se exige un bot que reciba comandos, OAuth, sockets ni configurar un webhook público de Telegram. 
+c. Si el proveedor no está disponible durante la defensa, mostrar evidencia previa real y demostrar en vivo el adaptador con un mock controlado.
+5.4. Código de Apoyo y Tareas del Alumnado
+• El código contiene archivos .py reales, no capturas, junto con , ,  y  .env.example compose.yaml requirements.txt pyproject.toml.
+◦ La base entregada incluye cliente  con destino local, persistencia por reemplazo atómico, logging con y , envío , recepción y . Boto3 JSON JSON cola/hilo gzip SQS ACK
+◦ Estos helpers se leen y se verifican; no acreditan autoría individual por copiarlos.
+• Los cuerpos marcados y son las actividades que el equipo debe desarrollar. TODO NotImplementedError 
+◦ Cada plantilla presenta , y ; y  explican restricciones cuando corresponde. Args Returns Raises Notes Side Effects
+◦ Los comentarios acompañan las instrucciones de cada línea o bloque para orientar su implementación. 
+◦ El anexo incluye las plantillas de los seis roles y sus dependencias principales.
+5.5. Plan Sugerido de Trabajo
+Como referencia de organización, se propone trabajar en cuatro hitos sin fijar fechas institucionales. 
+1. : entorno común, contratos y validación; todos pueden importar el paquete y ejecutar las pruebas base. Hito 1
+2. : SQS/DLQ y caso nominal; un mensaje produce un cambio real en el emulador. Hito 2
+3. : fallos, duplicados, reinicio, reporte/aviso y trazabilidad; completar la matriz. Hito 3
+4. : revisión de pares, congelar versiones, desde cero y defensa individual. Si un requisito no funciona, registrarlo con honestidad y corregirlo; Hito 4 README no reemplazar la evidencia por logs fabricados.
+5.5.1. Recetas Boto3 para los Recursos Nuevos
+1. El archivo  entrega cinco recetas cortas: services/cloud_support.py
+a. adapta etiquetas; aws_tags 
+b. descubre VPC e ImageId; mock_inputs 
+c. crea S3; create_bucket 
+d. crea un grupo de seguridad sin puertos de entrada; create_group 
+e. solicita una instancia mock con . create_instance ClientToken
+f. Cada línea indica su propósito y cada función documenta argumentos, salida, fallos y efectos. Usarlas evita tener que aprender todos los parámetros de EC2 antes de integrar el final.
+2. Estas recetas crean recursos, pero no deciden si deben crearlos. 
+a. Antes, el módulo del alumno consulta el manifiesto y los recursos existentes por tags/nombre. 
+b. Después, guarda los y verifica el estado real. Nunca capturar cualquier para asumir que algo no existe. IDs ClientError 
+c. Un nombre estable, tags de propiedad y token estable ayudan a recuperar una creación interrumpida. 
+d. Si no se descubre una o  detenerse con mensaje claro y revisar el entorno preparado por la cátedra.VPC AMI mock,
+3. El etiquetado S3 ocurre en una llamada separada de : si esa segunda llamada falla, el bucket ya fue creado. create_bucket
+a. Repetir el flujo debe encontrarlo por nombre propio y completar las etiquetas  sin adoptarlo si su identidad contradice el inventario. ,
+b. Esta es una situación de fallo parcial que debe demostrarse, no ocultarse.
+5.6. Arquitectura y Ejecución Nominal
+Leer el diagrama como un flujo de responsabilidades: el receptor acepta, la cola conserva y el worker decide la reparación. El anexo visual muestra la misma arquitectura. Los logs se usan desde todos los componentes aunque 
+aquí se dibuja una sola salida para simplificar.
+Cuando estén completos los TODO de colas y laboratorio:
+python -m fenix
+. cli init-queues
+python -m fenix
+. cli setup-demo
+python -m fenix
+. cli fault node-01
+1. Terminal 1, iniciar el receptor con un solo proceso. 
+a. El entorno  es cargado por los clientes; .env
+b. Configurar  antes de la primera petición. WEBHOOK_SECRET
+c. Puede usarse  para hacerlo explícito:uvicorn ... --env-file .env
+python -m uvicorn fenix
+. services
+. receiver
+: app --host 127.0.0.1 --port 8000 --workers 1 --env-file 
+. env
+2. Terminal 2, mantener el consumidor activo:
+python -m fenix
+. cli worker
+3. Terminal 3, enviar una alerta después de verificar que el nodo está detenido:
+python -m fenix
+. cli send examples/node-event
+. json
+Resultado: con ; el worker verifica running, guarda , envía el aviso, guarda notified y confirma SQS. HTTP 202 MessageId repair_done
+• Consultar EC2 desde Boto3 para demostrar running y revisar el ledger. 
+• El ejemplo tiene fecha ilustrativa; actualizar a la del ensayo para que la evidencia sea clara. La CLI siempre genera un timestamp HMAC nuevo.occurred_at 
+Repetir send con el mismo archivo: puede recibirse otro , pero el es el mismo y no deben repetirse reparación ni aviso ya confirmado. MessageId event_id 
+• Luego introducir el fallo del bucket y enviar . examples/bucket-event.json
+• Si se vuelve a fabricar una falla nueva, usar un nuevo; un evento completo anterior no representa una incidencia nueva.event_id 
+Para demostrar fallos temporales, copiar el evento, elegir un ID nuevo y . simulate_failures=2
+• Para DLQ usar otro ID y , manteniendo el worker hasta que SQS lo derive. simulate_failures=5
+• El  no garantiza por sí solo que la ya sea visible: seguir consultando con espera acotada y registrar el resultado real.intento 3 DLQ 
+5.7. Matriz Mínima de Pruebas
+ID Caso y preparación Resultado esperado
+F01 init-queues y setup-demo dos 
+veces
+Mismas colas y recursos; 
+sin duplicados
+F02 Nodo detenido, evento firmado 
+válido
+Running verificado, ledger 
+completo, aviso y ACK
+F03 Bucket sin Owner Tags restauradas y 
+etiquetas ajenas 
+preservadas
+F04 Firma ausente/alterada y 
+timestamp de hace una hora
+401 y ningún mensaje 
+nuevo
+F05 Mismos datos JSON con bytes 
+distintos tras firmar
+401 por HMAC inválida
+F06 JSON roto firmado; luego lista 
+JSON firmada
+400 y 422 respectivamente; 
+sin publicación
+F07 Alias ajeno y claves extra Rechazo de esquema; 
+ningún cambio cloud
+F08 Evento directo a SQS con JSON 
+corrupto
+Worker sigue; mensaje 
+termina en DLQ
+F09 simulate_failures=2, ID nuevo Backoff 2 y 4; después 
+reparación y ACK
+F10 Falla persistente, ID nuevo Sin ACK; derivación 
+automática a DLQ
+F11 Repetir evento ya completo; luego 
+reiniciar worker
+Sin nueva reparación ni 
+aviso confirmado
+F12 Cortar después de repair_done y 
+antes de notify
+Reinicio recupera solo 
+aviso pendiente
+F13 SQS detenido al recibir webhook 503; no hay aceptación falsa
+F14 Mock de aviso 429/timeout y 
+luego éxito
+Reparación no se repite; 
+aviso pendiente reintentado
+F15 Cambiar payload conservando 
+event_id
+Conflicto; no altera ledger 
+original ni recursos
+F16 Forzar rotación, abrir .gz y parsear 
+cada línea
+JSON válido, UTC y 
+contexto; ningún secreto
+• Crear pruebas automáticas para . F04/F05/F06/F07, F09, F11/F12 y F16
+◦  requieren evidencia de integración sobre LocalStack. F01/F02/F03/F08/F10/F13
+• Un mock es apropiado para forzar respuestas HTTP; no reemplaza la prueba real de que SQS conserva y redirige mensajes. 
+• Al finalizar, detener procesos y limpiar únicamente IDs inventariados: terminar instancia,  bucket y eliminar SG cuando no esté en uso. Destruir colas solo después de documentar la DLQ.vaciar/borrar
+5.8. Entregables y Plantilla de README
+1. El repositorio debe contener , ,  cuando corresponda,  o el , , , , , ,  y 
+ 
+src/ tests/ examples/ config/ subpaquete config/
+README.md requirements.txt requirements-lock.txt pyproject.toml compose.yaml .env.example
+.gitignore.
+a. No incluir , , , archivos de datos personales ni cachés.  y  son runtime; adjuntar copias anonimizadas seleccionadas en evidencias/ cuando se necesiten para corregir. .env .venv tokens data/ logs/
+b. Si hubo un secreto en Git, eliminar el archivo de la última versión no lo revoca: regenerarlo y sanear el historial antes de entregar.
+2. El README debe contener estas secciones completas: 
+a. Objetivo del sistema; 
+b. Tabla de integrantes y roles; 
+c. Prerrequisitos y versiones; 
+d. Instalación desde cero; 
+e. Variables de entorno sin valores privados; diagrama Mermaid; 
+f. Contratos de entrada/salida; ejecución por terminal;
+g. Reglas de reintento y DLQ; decisiones de idempotencia; matriz de pruebas con esperado y obtenido; 
+h. Limitaciones; evidencia del canal elegido; limpieza del laboratorio; 
+i. Vínculo al video y marcas de tiempo por integrante; declaración de ayuda externa e IA.
+3. Para cada prueba registrar , , o nombre , datos de entrada anonimizados, resultado esperado, resultado observado, evidencia y responsable. ID fecha comando pytest
+a. Incluir un JSON de log nominal, otro de fallo, un histórico gzip legible y un resultado final consultado mediante Boto3. 
+b. La se demuestra leyendo un mensaje real de la sin eliminarlo antes de documentarlo; sus contadores son aproximados y no bastan como única evidencia.DLQ DLQ 
+4. Antes de entregar, otro integrante debe clonar el repositorio en una carpeta nueva, crear su entorno, configurar un .env propio y seguir exclusivamente el README. 
+a. Registrar qué instrucciones hubo que corregir. La aceptación del final no depende del aspecto de las capturas, sino de que otra persona pueda reproducir el comportamiento.
+5.9. Referencias y Continuidad de la Cursada
+Documentación oficial consultada el 22 de octubre de 2026. Sirve de apoyo a operaciones y límites; no se exige leerla completa.
+Ref Documento y uso
+R1 LocalStack EC2 y VM managers. EC2 mock/CRUD y alcance por plan.  
+https://docs.localstack.cloud/aws/services/ec2/
+R2 LocalStack instalación y autenticación.  
+https://docs.localstack.cloud/aws/getting-started/installation/
+R3 SQS colas estándar y recepción. 
+  y  
+https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-
+queues.html
+https://docs.aws.amazon.com/boto3/latest/reference/services/sqs/client/receive_message.html
+R4 SQS visibility timeout y cambio por entrega. 
+ 
+https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-
+visibility-timeout.html
+R5 SQS DLQ y maxReceiveCount. 
+ 
+https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-
+queues.html
+R6 Telegram Bot API y sendMessage.  
+https://core.telegram.org/bots/api
+R7 Slack incoming webhooks.  
+https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks/
+R8 Python TaskGroup y ExceptionGroup.   
+https://docs.python.org/3/library/asyncio-task.html
+R9 SQS delay y timers con límite de 15 minutos. 
+ 
+https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-delay-queues.html
+R10 Boto3 EC2 run_instances e idempotencia con ClientToken. 
+ 
+https://docs.aws.amazon.com/boto3/latest/reference/services/ec2/client/run_instances.html
+R11 S3 borrar objetos y errores por objeto.  
+https://docs.aws.amazon.com/boto3/latest/reference/services/s3/client/delete_objects.html
+Ya casi terminas. Regístrate y comienza a crear en Notion hoy mismo. Regístrate o inicia sesión
+Programación para Aut… / TP Final 1 - Sistema de Autorreparaci…

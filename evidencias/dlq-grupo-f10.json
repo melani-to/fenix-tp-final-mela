@@ -1,0 +1,13 @@
+﻿{
+    "Messages": [
+        {
+            "MessageId": "c5181e87-55b9-4bb6-94c2-f606f2aef354",
+            "ReceiptHandle": "ZTkzMjRhZTEtZTFhYy00OTE3LTkxN2QtOTY2OGE3NzY1M2Q2IGFybjphd3M6c3FzOnVzLWVhc3QtMTowMDAwMDAwMDAwMDA6ZmVuaXgtZ3J1cG8wMS1kbHEgYzUxODFlODctNTViOS00YmI2LTk0YzItZjYwNmYyYWVmMzU0IDE3OTUxNDI4NjcuOTUzNjA2MQ==",
+            "MD5OfBody": "d6c8e702a3c602d2b99c1dd1bbef6eea",
+            "Body": "{\"schema_version\": 1, \"event_id\": \"evt-node-dlq\", \"event_type\": \"instance.stopped\", \"resource_id\": \"node-01\", \"occurred_at\": \"2026-11-20T02:45:51Z\", \"simulate_failures\": 5}",
+            "Attributes": {
+                "ApproximateReceiveCount": "5"
+            }
+        }
+    ]
+}
